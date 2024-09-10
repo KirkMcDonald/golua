@@ -35,9 +35,9 @@ package lua
 #cgo freebsd,lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua-5.4 -lm
 
 #cgo windows,!lua52,!lua53,!lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -L${SRCDIR} -llua -lmingwex -lmingw32
-#cgo windows,lua52,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua52
-#cgo windows,lua53,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua53
-#cgo windows,lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua54
+#cgo windows,lua52,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua5.2
+#cgo windows,lua53,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua5.3
+#cgo windows,lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua5.4
 
 #include <lua.h>
 #include <stdlib.h>
