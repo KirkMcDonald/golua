@@ -13,6 +13,7 @@
 static const char GoStateRegistryKey = 'k'; //golua registry key
 static const char PanicFIDRegistryKey = 'k';
 
+
 /* taken from lua5.2 source */
 void *testudata(lua_State *L, int ud, const char *tname)
 {
@@ -338,68 +339,14 @@ void clua_openbase(lua_State* L)
 	clua_hide_pcall(L);
 }
 
-void clua_openio(lua_State* L)
-{
-	luaL_requiref(L, "io", &luaopen_io, 1);
-	lua_pop(L, 1);
-}
-
-void clua_openmath(lua_State* L)
-{
-	luaL_requiref(L, "math", &luaopen_math, 1);
-	lua_pop(L, 1);
-}
-
-void clua_openpackage(lua_State* L)
-{
-	luaL_requiref(L, "package", &luaopen_package, 1);
-	lua_pop(L, 1);
-}
-
-void clua_openstring(lua_State* L)
-{
-	luaL_requiref(L, "string", &luaopen_string, 1);
-	lua_pop(L, 1);
-}
-
-void clua_opentable(lua_State* L)
-{
-	luaL_requiref(L, "table", &luaopen_table, 1);
-	lua_pop(L, 1);
-}
-
-void clua_openos(lua_State* L)
-{
-	luaL_requiref(L, "os", &luaopen_os, 1);
-	lua_pop(L, 1);
-}
-
-void clua_opencoroutine(lua_State *L)
-{
-	luaL_requiref(L, "coroutine", &luaopen_coroutine, 1);
-	lua_pop(L, 1);
-}
-
-void clua_opendebug(lua_State *L)
-{
-	luaL_requiref(L, "debug", &luaopen_debug, 1);
-	lua_pop(L, 1);
-}
-
-void clua_openbit32(lua_State *L)
-{
-	luaL_requiref(L, "bit32", &luaopen_bit32, 1);
-	lua_pop(L, 1);
-}
-
 void clua_hook_function(lua_State *L, lua_Debug *ar)
 {
 	lua_checkstack(L, 2);
-	lua_pushstring(L, "Lua execution quantum exceeded");
-	lua_error(L);
+	size_t gostateindex = clua_getgostate(L);
+	golua_callgohook(gostateindex);
 }
 
-void clua_setexecutionlimit(lua_State* L, int n)
+void clua_sethook(lua_State* L, int n)
 {
 	lua_sethook(L, &clua_hook_function, LUA_MASKCOUNT, n);
 }

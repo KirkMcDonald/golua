@@ -1,7 +1,10 @@
 package lua
 
 /*
-#cgo CFLAGS: -I ${SRCDIR}/lua
+#cgo !lua52,!lua53,!lua54 CFLAGS: -I ${SRCDIR}/lua51
+#cgo lua52 CFLAGS: -I ${SRCDIR}/lua52
+#cgo lua53 CFLAGS: -I ${SRCDIR}/lua53
+#cgo lua54 CFLAGS: -I ${SRCDIR}/lua54
 
 #include <lua.h>
 #include <lualib.h>
@@ -21,6 +24,12 @@ type Alloc func(ptr unsafe.Pointer, osize uint, nsize uint) unsafe.Pointer
 // This is the type of go function that can be registered as lua functions
 type LuaGoFunction func(L *State) int
 
+// This is the type of a go function that can be used as a lua_Hook
+type HookFunction func(L *State)
+
+// The errorstring used by State.SetExecutionLimit
+const ExecutionQuantumExceeded = "Lua execution quantum exceeded"
+
 // Wrapper to keep cgo from complaining about incomplete ptr type
 //export State
 type State struct {
@@ -35,6 +44,12 @@ type State struct {
 
 	// Freelist for funcs indices, to allow for freeing
 	freeIndices []uint
+
+	// User self defined memory alloc func for the lua State
+	allocfn *Alloc
+
+	// User defined hook function
+	hookFn HookFunction
 }
 
 var goStates map[uintptr]*State
@@ -71,6 +86,14 @@ func golua_callgofunction(gostateindex uintptr, fid uint) int {
 	}
 	f := L1.registry[fid].(LuaGoFunction)
 	return f(L1)
+}
+
+//export golua_callgohook
+func golua_callgohook(gostateindex uintptr) {
+	L1 := getGoState(gostateindex)
+	if L1.hookFn != nil {
+		L1.hookFn(L1)
+	}
 }
 
 var typeOfBytes = reflect.TypeOf([]byte(nil))
@@ -111,7 +134,7 @@ func golua_interface_newindex_callback(gostateindex uintptr, iid uint, field_nam
 		fallthrough
 	case reflect.Int64:
 		if luatype == LUA_TNUMBER {
-			fval.SetInt(int64(C.lua_tointegerx(L.s, 3, nil)))
+			fval.SetInt(int64(luaToInteger(L.s, 3)))
 			return 1
 		} else {
 			L.PushString("Wrong assignment to field " + field_name)
@@ -128,7 +151,7 @@ func golua_interface_newindex_callback(gostateindex uintptr, iid uint, field_nam
 		fallthrough
 	case reflect.Uint64:
 		if luatype == LUA_TNUMBER {
-			fval.SetUint(uint64(C.lua_tointegerx(L.s, 3, nil)))
+			fval.SetUint(uint64(luaToInteger(L.s, 3)))
 			return 1
 		} else {
 			L.PushString("Wrong assignment to field " + field_name)
@@ -148,7 +171,7 @@ func golua_interface_newindex_callback(gostateindex uintptr, iid uint, field_nam
 		fallthrough
 	case reflect.Float64:
 		if luatype == LUA_TNUMBER {
-			fval.SetFloat(float64(C.lua_tonumberx(L.s, 3, nil)))
+			fval.SetFloat(float64(luaToNumber(L.s, 3)))
 			return 1
 		} else {
 			L.PushString("Wrong assignment to field " + field_name)

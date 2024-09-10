@@ -5,21 +5,29 @@ Go Bindings for the lua C API
 
 Simplest way to install:
 
-	# go get -u github.com/aarzilli/golua/lua
-
-Will work as long as your compiler can find a shared object called lua5.1 on linux, or lua anywhere else.
-If your linux system uses "lua" as the shared object name for lua (for example, Fedora Core does this) you can install using:
-
-	# go get -u -tags llua github.com/aarzilli/golua/lua
-
+	# go get github.com/aarzilli/golua/lua
 
 You can then try to run the examples:
 
-	$ cd /usr/local/go/src/pkg/github.com/aarzilli/golua/example/
+	$ cd golua/_example/
 	$ go run basic.go
 	$ go run alloc.go
 	$ go run panic.go
 	$ go run userdata.go
+
+This library is configured using build tags. By default it will look for a library (or "shared object") called:
+
+* lua5.1 on Linux and macOS
+* lua on Windows
+* lua-5.1 on FreeBSD
+
+If this doesn't work `-tags luadash5.1` can be used to force `lua-5.1`, and `-tags llua` can be used to force `lua`.
+
+If you want to statically link to liblua.a you can do that with `-tags luaa`. Luajit can also be used by
+specifying `-tags luajit`.
+
+The library uses lua5.1 by default but also supports lua5.2 by specifying `-tags lua52`, lua5.3 by
+specifying `-tags lua53`, and lua5.4 by specifying `-tags lua54`. If the library installed on your system has a dash, for example it is called `liblua-5.4` use the `lluadash` tag: `go build -tags lua54,lluadash ...`.
 
 QUICK START
 ---------------------
@@ -105,8 +113,7 @@ ON THREADS AND COROUTINES
 ODDS AND ENDS
 ---------------------
 
-* Support for lua 5.2 is in the lua5.2 branch, this branch only supports lua5.1.
-* Support for lua 5.3 is in the lua5.3 branch.
+* If you want to build against lua5.2, lua5.3, or lua5.4 use the build tags lua52, lua53, or lua54 respectively.
 * Compiling from source yields only a static link library (liblua.a), you can either produce the dynamic link library on your own or use the `luaa` build tag.
 
 LUAJIT
@@ -137,11 +144,13 @@ CONTRIBUTORS
 * Admin36
 * Pierre Neidhardt (@Ambrevar)
 * HuangWei (@huangwei1024)
+* Adam Saponara
 
 SEE ALSO
 ---------------------
 
 - [Luar](https://github.com/stevedonovan/luar/) is a reflection layer on top of golua API providing a simplified way to publish go functions to a Lua VM.
+- [lunatico](https://github.com/fiatjaf/lunatico) is a reflection layer that allows you to push and read Go values to a Lua VM without understanding the Lua stack.
 - [Golua unicode](https://github.com/Ambrevar/golua) is an extension library that adds unicode support to golua and replaces lua regular expressions with re2.
 
 Licensing

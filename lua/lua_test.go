@@ -336,7 +336,7 @@ func TestStackTrace(t *testing.T) {
 	defer L.Close()
 	L.OpenLibs()
 
-	err := L.DoFile("../example/calls.lua")
+	err := L.DoFile("../_example/calls.lua")
 	if err == nil {
 		t.Fatal("No error returned from the execution of calls.lua")
 	}
@@ -393,5 +393,58 @@ func TestConv(t *testing.T) {
 	s = L.ToString(-1)
 	if s != "a\000test" {
 		t.Fatalf("Wrong conversion (str -> str): <%s>", s)
+	}
+}
+
+func TestDumpAndLoad(t *testing.T) {
+	L := NewState()
+	defer L.Close()
+	L.OpenLibs()
+
+	loadret := L.LoadString(`print("msg from dump_and_load_test")`)
+	if loadret != 0 {
+		t.Fatalf("LoadString error: %v", loadret)
+	}
+	dumpret := L.Dump()
+	if dumpret != 0 {
+		t.Fatalf("Dump error: %v", dumpret)
+	}
+
+	isstring := L.IsString(-1)
+	if !isstring {
+		t.Fatalf("stack top not a string")
+	}
+	bytecodes := L.ToBytes(-1)
+	loadret = L.Load(bytecodes, "chunk_from_dump_and_load_test")
+	if loadret != 0 {
+		t.Fatalf("Load error: %v", loadret)
+	}
+	err := L.Call(0, 0)
+	if err != nil {
+		t.Fatalf("Call error: %v", err)
+	}
+}
+
+func TestCustomDebugHook(t *testing.T) {
+	L := NewState()
+	defer L.Close()
+
+	L.SetHook(func(l *State) {
+		l.RaiseError("stop")
+	}, 1)
+
+	err := L.DoString(`
+		local x = 0
+		while(1 ~= 0) do
+			x = 2
+		end
+	`)
+
+	if err == nil {
+		t.Fatalf("Script should have raised an error")
+	} else {
+		if err.Error() != "stop" {
+			t.Fatal("Error should be coming from the hook")
+		}
 	}
 }

@@ -6,14 +6,38 @@
 package lua
 
 /*
-#cgo CFLAGS: -I ${SRCDIR}/lua
+#cgo !lua52,!lua53,!lua54 CFLAGS: -I ${SRCDIR}/lua51
+#cgo lua52 CFLAGS: -I ${SRCDIR}/lua52
+#cgo lua53 CFLAGS: -I ${SRCDIR}/lua53
+#cgo lua54 CFLAGS: -I ${SRCDIR}/lua54
 #cgo llua LDFLAGS: -llua
+
 #cgo luaa LDFLAGS: -llua -lm -ldl
-#cgo luajit LDFLAGS: -lluajit-5.3
-#cgo linux,!llua,!luaa,!luajit LDFLAGS: -llua5.3
-#cgo darwin,!luaa,!luajit pkg-config: lua5.3
-#cgo freebsd,!luaa,!luajit LDFLAGS: -llua-5.3
-#cgo windows,!llua,!luajit LDFLAGS: -L${SRCDIR} -llua -lmingwex -lmingw32
+#cgo luajit LDFLAGS: -lluajit-5.1
+#cgo lluadash5.1 LDFLAGS: -llua-5.1
+#cgo lua52,lluadash LDFLAGS: -llua-5.4
+#cgo lua53,lluadash LDFLAGS: -llua-5.3
+#cgo lua54,lluadash LDFLAGS: -llua-5.4 -lm
+
+#cgo linux,!lua52,!lua53,!lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua5.1
+#cgo linux,lua52,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua5.2
+#cgo linux,lua53,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua5.3
+#cgo linux,lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua5.4 -lm
+
+#cgo darwin,!lua52,!lua53,!lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash pkg-config: lua5.1
+#cgo darwin,lua52,!llua,!luaa,!luajit,!lluadash5.1,!lluadash pkg-config: lua5.2
+#cgo darwin,lua53,!llua,!luaa,!luajit,!lluadash5.1,!lluadash pkg-config: lua5.3
+#cgo darwin,lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash pkg-config: lua5.4 m
+
+#cgo freebsd,!lua52,!lua53,!lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua-5.1
+#cgo freebsd,lua52,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua-5.2
+#cgo freebsd,lua53,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua-5.3
+#cgo freebsd,lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua-5.4 -lm
+
+#cgo windows,!lua52,!lua53,!lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -L${SRCDIR} -llua -lmingwex -lmingw32
+#cgo windows,lua52,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua52
+#cgo windows,lua53,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua53
+#cgo windows,lua54,!llua,!luaa,!luajit,!lluadash5.1,!lluadash LDFLAGS: -llua54
 
 #include <lua.h>
 #include <stdlib.h>
@@ -22,9 +46,10 @@ package lua
 
 */
 import "C"
-import "unsafe"
-
-import "fmt"
+import (
+	"fmt"
+	"unsafe"
+)
 
 type LuaStackEntry struct {
 	Name        string
@@ -34,7 +59,7 @@ type LuaStackEntry struct {
 }
 
 func newState(L *C.lua_State) *State {
-	newstate := &State{L, 0, make([]interface{}, 0, 8), make([]uint, 0, 8)}
+	newstate := &State{L, 0, make([]interface{}, 0, 8), make([]uint, 0, 8), nil, nil}
 	registerGoState(newstate)
 	C.clua_setgostate(L, C.size_t(newstate.Index))
 	C.clua_initstate(L)
@@ -77,9 +102,9 @@ func (L *State) register(f interface{}) uint {
 		index = uint(len(L.registry))
 		//reallocate backing array if necessary
 		if index+1 > uint(cap(L.registry)) {
-			newcap := cap(L.registry)*2
+			newcap := cap(L.registry) * 2
 			if index+1 > uint(newcap) {
-				newcap = int(index+1)
+				newcap = int(index + 1)
 			}
 			newSlice := make([]interface{}, index, newcap)
 			copy(newSlice, L.registry)
@@ -181,10 +206,6 @@ func (L *State) AtPanic(panicf LuaGoFunction) (oldpanicf LuaGoFunction) {
 	return nil
 }
 
-func (L *State) pcall(nargs, nresults, errfunc int) int {
-	return int(C.lua_pcallk(L.s, C.int(nargs), C.int(nresults), C.int(errfunc), 0, nil))
-}
-
 func (L *State) callEx(nargs, nresults int, catch bool) (err error) {
 	if catch {
 		defer func() {
@@ -243,28 +264,6 @@ func (L *State) CreateTable(narr int, nrec int) {
 	C.lua_createtable(L.s, C.int(narr), C.int(nrec))
 }
 
-// lua_equal
-func (L *State) Equal(index1, index2 int) bool {
-	return C.lua_compare(L.s, C.int(index1), C.int(index2), C.LUA_OPEQ) == 1
-}
-
-// lua_gc
-func (L *State) GC(what, data int) int { return int(C.lua_gc(L.s, C.int(what), C.int(data))) }
-
-// lua_getfield
-func (L *State) GetField(index int, k string) LuaValType {
-	Ck := C.CString(k)
-	defer C.free(unsafe.Pointer(Ck))
-	return LuaValType(C.lua_getfield(L.s, C.int(index), Ck))
-}
-
-// Pushes on the stack the value of a global variable (lua_getglobal)
-func (L *State) GetGlobal(name string) {
-	Ck := C.CString(name)
-	defer C.free(unsafe.Pointer(Ck))
-	C.lua_getglobal(L.s, Ck)
-}
-
 // lua_getmetatable
 func (L *State) GetMetaTable(index int) bool {
 	return C.lua_getmetatable(L.s, C.int(index)) != 0
@@ -275,9 +274,6 @@ func (L *State) GetTable(index int) { C.lua_gettable(L.s, C.int(index)) }
 
 // lua_gettop
 func (L *State) GetTop() int { return int(C.lua_gettop(L.s)) }
-
-// lua_insert
-func (L *State) Insert(index int) { C.lua_rotate(L.s, C.int(index), 1) }
 
 // Returns true if lua_type == LUA_TBOOLEAN
 func (L *State) IsBoolean(index int) bool {
@@ -332,20 +328,12 @@ func (L *State) IsThread(index int) bool {
 // lua_isuserdata
 func (L *State) IsUserdata(index int) bool { return C.lua_isuserdata(L.s, C.int(index)) == 1 }
 
-// lua_len
-func (L *State) Len(index int) {
-	C.lua_len(L.s, C.int(index))
-}
-
-// lua_lessthan
-func (L *State) LessThan(index1, index2 int) bool {
-	return C.lua_compare(L.s, C.int(index1), C.int(index2), C.LUA_OPLT) == 1
-}
-
 // Creates a new lua interpreter state with the given allocation function
 func NewStateAlloc(f Alloc) *State {
 	ls := C.clua_newstate(unsafe.Pointer(&f))
-	return newState(ls)
+	L := newState(ls)
+	L.allocfn = &f
+	return L
 }
 
 // lua_newtable
@@ -359,7 +347,7 @@ func (L *State) NewThread() *State {
 	//TODO: should have same lists as parent
 	//		but may complicate gc
 	s := C.lua_newthread(L.s)
-	return &State{s, 0, nil, nil}
+	return &State{s, 0, nil, nil, nil, nil}
 }
 
 // lua_next
@@ -368,10 +356,6 @@ func (L *State) Next(index int) int {
 }
 
 // lua_objlen
-func (L *State) ObjLen(index int) uint {
-	return uint(C.lua_rawlen(L.s, C.int(index)))
-}
-
 // lua_pop
 func (L *State) Pop(n int) {
 	//Why is this implemented this way? I don't get it...
@@ -436,19 +420,9 @@ func (L *State) RawGet(index int) {
 	C.lua_rawget(L.s, C.int(index))
 }
 
-// lua_rawgeti
-func (L *State) RawGeti(index int, n int) {
-	C.lua_rawgeti(L.s, C.int(index), C.lua_Integer(n))
-}
-
 // lua_rawset
 func (L *State) RawSet(index int) {
 	C.lua_rawset(L.s, C.int(index))
-}
-
-// lua_rawseti
-func (L *State) RawSeti(index int, n int) {
-	C.lua_rawseti(L.s, C.int(index), C.lua_Integer(n))
 }
 
 // Registers a Go function as a global variable
@@ -457,28 +431,10 @@ func (L *State) Register(name string, f LuaGoFunction) {
 	L.SetGlobal(name)
 }
 
-// lua_remove
-func (L *State) Remove(index int) {
-	C.lua_rotate(L.s, C.int(index), -1)
-	//C.lua_pop(L, 1)
-	C.lua_settop(L.s, C.int(-2))
-}
-
-// lua_replace
-func (L *State) Replace(index int) {
-	C.lua_copy(L.s, -1, C.int(index))
-	//C.lua_pop(L.s, 1)
-	C.lua_settop(L.s, -2)
-}
-
-// lua_resume
-func (L *State) Resume(narg int) int {
-	return int(C.lua_resume(L.s, nil, C.int(narg)))
-}
-
 // lua_setallocf
 func (L *State) SetAllocf(f Alloc) {
-	C.clua_setallocf(L.s, unsafe.Pointer(&f))
+	L.allocfn = &f
+	C.clua_setallocf(L.s, unsafe.Pointer(L.allocfn))
 }
 
 // lua_setfield
@@ -486,13 +442,6 @@ func (L *State) SetField(index int, k string) {
 	Ck := C.CString(k)
 	defer C.free(unsafe.Pointer(Ck))
 	C.lua_setfield(L.s, C.int(index), Ck)
-}
-
-// lua_setglobal
-func (L *State) SetGlobal(name string) {
-	Cname := C.CString(name)
-	defer C.free(unsafe.Pointer(Cname))
-	C.lua_setglobal(L.s, Cname)
 }
 
 // lua_setmetatable
@@ -557,16 +506,6 @@ func (L *State) ToBytes(index int) []byte {
 	return C.GoBytes(unsafe.Pointer(b), C.int(size))
 }
 
-// lua_tointeger
-func (L *State) ToInteger(index int) int {
-	return int(C.lua_tointegerx(L.s, C.int(index), nil))
-}
-
-// lua_tonumber
-func (L *State) ToNumber(index int) float64 {
-	return float64(C.lua_tonumberx(L.s, C.int(index), nil))
-}
-
 // lua_topointer
 func (L *State) ToPointer(index int) uintptr {
 	return uintptr(C.lua_topointer(L.s, C.int(index)))
@@ -596,11 +535,6 @@ func (L *State) Typename(tp int) string {
 // lua_xmove
 func XMove(from *State, to *State, n int) {
 	C.lua_xmove(from.s, to.s, C.int(n))
-}
-
-// lua_yield
-func (L *State) Yield(nresults int) int {
-	return int(C.lua_yieldk(L.s, C.int(nresults), 0, nil))
 }
 
 // Restricted library opens
@@ -640,24 +574,18 @@ func (L *State) OpenOS() {
 	C.clua_openos(L.s)
 }
 
-// Calls luaopen_debug
-func (L *State) OpenDebug() {
-	C.clua_opendebug(L.s)
-}
-
-// Calls luaopen_bit32
-func (L *State) OpenBit32() {
-	C.clua_openbit32(L.s)
-}
-
-// Calls luaopen_coroutine
-func (L *State) OpenCoroutine() {
-	C.clua_opencoroutine(L.s)
+// This and SetExecutionLimit are mutual exclusive
+func (L *State) SetHook(f HookFunction, instrNumber int) {
+	L.hookFn = f
+	C.clua_sethook(L.s, C.int(instrNumber))
 }
 
 // Sets the maximum number of operations to execute at instrNumber, after this the execution ends
+// This and SetHook are mutual exclusive
 func (L *State) SetExecutionLimit(instrNumber int) {
-	C.clua_setexecutionlimit(L.s, C.int(instrNumber))
+	L.SetHook(func(l *State) {
+		l.RaiseError(ExecutionQuantumExceeded)
+	}, instrNumber)
 }
 
 // Returns the current stack trace
@@ -688,7 +616,7 @@ func (L *State) StackTrace() []LuaStackEntry {
 func (L *State) RaiseError(msg string) {
 	st := L.StackTrace()
 	prefix := ""
-	if len(st) >= 1 {
+	if len(st) >= 2 {
 		prefix = fmt.Sprintf("%s:%d: ", st[1].ShortSource, st[1].CurrentLine)
 	}
 	panic(&LuaError{0, prefix + msg, st})
@@ -696,4 +624,8 @@ func (L *State) RaiseError(msg string) {
 
 func (L *State) NewError(msg string) *LuaError {
 	return &LuaError{0, msg, L.StackTrace()}
+}
+
+func (L *State) GetState() *C.lua_State {
+	return L.s
 }
